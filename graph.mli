@@ -20,11 +20,10 @@ type 'e edge
 type ('n, 'e) graph
 type 'n color
 
-val empty : ('n, 'e) graph
+val empty : unit -> ('n, 'e) graph
 val mk_node : 'n -> ('n, 'e) graph -> 'n node
-val mk_edge : 'n node -> 'n node -> 'e -> 'e edge
 val add_node : 'n node -> ('n, 'e) graph -> ('n, 'e) graph
-val add_edge : 'e edge -> ('n, 'e) graph -> ('n, 'e) graph
+val add_edge : 'n node -> 'n node -> 'e -> ('n, 'e) graph -> ('n, 'e) graph
 
 val color : int -> ('n, 'e) graph -> (('n color, 'e) graph, 'n node) result
 val graphviz : ('n -> string) -> ('e -> string) -> ('n, 'e) graph -> string
