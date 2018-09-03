@@ -19,6 +19,9 @@ let conflict (intervals: 'n interval list): ('n, unit) Graph.graph =
     let graph = Graph.empty () in
     let intervals = intervals |> List.map (fun { label; start; finish } ->
         { label = graph |> Graph.mk_node label; start; finish }) in
+    let graph = intervals |> List.fold_left (fun graph { label } ->
+        graph |> Graph.add_node label
+    ) graph in
     intervals |> List.fold_left (fun graph int1 ->
             intervals |> List.fold_left (fun graph int2 ->
                 if int1 <> int2 && intersects int1 int2 then
