@@ -15,7 +15,7 @@ fn fib(n: int) -> int {
 let add_assign var op =
   Tac.add_instr (Assign (var, op))
 
-let def =
+let fib =
   let open Expr in
   let n, a, b, c = V 0, V 1, V 2, V 3 in
   {
@@ -32,6 +32,34 @@ let def =
         ]);
       Return (Var a);
     ];
+  }
+
+let collatz =
+  let open Expr in
+  let max, x, n, steps = V 0, V 1, V 2, V 3 in
+  {
+    name = "collatz";
+    params = [max];
+    body = [
+      Assign (n, Int 2);
+      Assign (steps, Int 0);
+      While (Lt (Var n, Var max), [
+          Assign (x, Var n);
+          Assign (n, Add(Var n, Int 1));
+          While (Not (Eq (Var x, Int 1)), [
+              If (Eq (Mul (Div (Var x, Int 2), Int 2), Var x),
+                  [ (* even *)
+                    Assign (x, Div (Var x, Int 2));
+                  ],
+                  [
+                    Assign (x, Add (Mul (Var x, Int 3), Int 1));
+                  ]
+                 );
+              Assign (steps, Add (Var steps, Int 1));
+            ]);
+        ]);
+      Return (Int 0);
+    ]
   }
 
 (*
@@ -101,6 +129,8 @@ let prog =
   |> add_block fib3
 
 let () =
-  print_endline (Expr.string_of_def def) ;
+  print_endline (Expr.string_of_def fib) ;
+  print_newline () ;
+  print_endline (Expr.string_of_def collatz) ;
   let out = open_out "target/tac.dot" in
   output_string out (Tac.graphviz prog)
