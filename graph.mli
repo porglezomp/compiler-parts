@@ -32,9 +32,12 @@ val mk_node : 'n -> ('n, 'e) graph -> 'n node
 val add_node : 'n node -> ('n, 'e) graph -> ('n, 'e) graph
 val add_edge : 'n node -> 'n node -> 'e -> ('n, 'e) graph -> ('n, 'e) graph
 
+val nodes : ('n, 'e) graph -> 'n node list
 val node_label : 'n node -> 'n
 val edge_label : 'e edge -> 'e
-val fmt_color : ('n -> attrs) -> ('n color -> attrs)
+val color_label : 'n color -> 'n
 
 val color : int -> ('n, 'e) graph -> (('n color, 'e) graph, 'n node) result
+
+val fmt_color : ('n -> attrs) -> ('n color -> attrs)
 val graphviz : ('n -> attrs) -> ('e -> attrs) -> ('n, 'e) graph -> string

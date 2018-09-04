@@ -12,4 +12,4 @@ type 'n interval = {
 
 val conflict : 'n interval list -> ('n, unit) Graph.graph
 
-val svg : ('n -> string) -> 'n interval list -> string
+val svg : ('n -> Graph.attrs) -> 'n interval list -> string

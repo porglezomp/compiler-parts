@@ -51,17 +51,11 @@ let add_edge (a: 'n node) (b: 'n node) (lbl: 'e) (graph: ('n, 'e) graph): ('n, '
             | Some s -> Some (s |> IntSet.add a))
     }
 
+let nodes (graph: ('n, 'e) graph): 'n node list =
+  IntMap.fold (fun _ n nodes -> n :: nodes) graph.nodes []
 let node_label ({ lbl }: 'n node): 'n = lbl
 let edge_label ({ lbl }: 'e edge): 'e = lbl
-
-let fmt_color (f: 'n -> attrs) (color: 'n color): attrs =
-    let colors = [|
-        "red"; "green"; "blue";
-        "magenta"; "yellow"; "cyan";
-        "purple"; "orange"; "turquoise";
-        "sienna"; "black"; "white";
-    |] in
-    ("fillcolor", colors.(color.color)) :: f color.lbl
+let color_label ({ lbl }: 'n color): 'n = lbl
 
 let iota n =
     let rec go acc n = if n < 0 then acc else go (n::acc) (n-1)
@@ -131,6 +125,18 @@ let color (k: int) (graph: ('n, 'e) graph): (('n color, 'e) graph, 'n node) resu
             { node with lbl = { color = colors |> IntMap.find i; lbl = node.lbl }}) in
         Ok { graph with nodes = nodes }
     | Error node -> Error node
+
+
+let fmt_color (f: 'n -> attrs) (color: 'n color): attrs =
+    let colors = [|
+        "red"; "green"; "blue";
+        "magenta"; "yellow"; "cyan";
+        "purple"; "orange"; "turquoise";
+        "sienna"; "black"; "white";
+    |] in
+    ("colorid", string_of_int color.color)
+    :: ("fillcolor", colors.(color.color))
+    :: f color.lbl
 
 let graphviz
         (show_node: 'n -> attrs) (show_edge: 'e -> attrs)

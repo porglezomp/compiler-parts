@@ -31,16 +31,28 @@ let conflict (intervals: 'n interval list): ('n, unit) Graph.graph =
             ) graph
         ) graph
 
-let svg (show_label: 'n -> string) (intervals: 'n interval list): string =
+let svg (show_label: 'n -> Graph.attrs) (intervals: 'n interval list): string =
     let box i ({label; start; finish}: 'n interval) =
-        let width = (finish - start) * 10 in
-        let x, y = start * 10, i * 25 in
-        let text_x, text_y = (start + finish) * 5, y + 15 in
-        Printf.sprintf "<rect width=\"%d\" height=\"20\" x=\"%d\" y=\"%d\"></rect>
+      let attrs = show_label label in
+      let get' key f default  =
+        match attrs |> List.assoc_opt key with
+        | None -> default
+        | Some value -> f value
+      in
+      let get key default = get' key (fun x -> x) default in
+      let width = (finish - start) * 10 in
+      let x = start * 10 in
+      let y = get' "colorid" (fun id -> int_of_string id * 25) (i * 25) in
+      let text_x, text_y = (start + finish) * 5, y + 15 in
+      let fill = get' "fillcolor" (fun c ->
+          Printf.sprintf " style=\"fill:%s;\"" c) "" in
+      let label = get "label" "" in
+      Printf.sprintf "<rect width=\"%d\" height=\"20\" x=\"%d\" y=\"%d\"%s></rect>
 <text x=\"%d\" y=\"%d\">%s</text>"
-            width x y
-            text_x text_y
-            (show_label label)
+        width x y
+        fill
+        text_x text_y
+        label
     in
     "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" version=\"1.1\">
   <style>rect { fill: none; stroke: black; } text { text-anchor: middle; }</style>
