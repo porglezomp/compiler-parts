@@ -129,17 +129,17 @@ let graphviz (def: def): string =
   let fmt_succ succ =
     match succ with
     | None -> "!!! NO SUCCESSOR !!!"
-    | Some (Goto (BlockId id)) -> Printf.sprintf "goto bb%d" id
+    | Some (Goto (BlockId id)) -> Printf.sprintf "goto bb%d\\l" id
     | Some (GotoIf (Var x, BlockId t, BlockId f)) ->
-      Printf.sprintf "goto if x%d bb%d bb%d" x t f
-    | Some (Return (Var x)) -> Printf.sprintf "return x%d" x
+      Printf.sprintf "goto if x%d bb%d bb%d\\l|{<true> T |<false> F}" x t f
+    | Some (Return (Var x)) -> Printf.sprintf "return x%d\\l" x
   in
   let fmt_block block =
     let (BlockId id) = block.block_id in
     let instrs = block.instrs |> List.map fmt_instr in
     let succ = fmt_succ block.succ in
-    Printf.sprintf "%d[label=\"{bb%d|%s\\l}\"]" id id
-      (succ :: instrs |> List.rev |> String.concat "\\l|")
+    Printf.sprintf "%d[label=\"{bb%d|%s}\"]" id id
+      (succ :: instrs |> List.rev |> String.concat "\\l")
   in
   let rec build_edges edges to_visit id =
     if to_visit |> IdSet.is_empty then
@@ -151,11 +151,11 @@ let graphviz (def: def): string =
       let edges = match block.succ with
         | None | Some (Return _) -> edges
         | Some (Goto (BlockId next)) ->
-          Printf.sprintf "%d:s -> %d:n" from next
+          Printf.sprintf "%d -> %d" from next
           :: edges
         | Some (GotoIf (Var x, BlockId t, BlockId f)) ->
-          Printf.sprintf "%d:s -> %d:n [label=\"true\"]" from t
-          :: Printf.sprintf "%d:s -> %d:n [label=\"false\"]" from f
+          Printf.sprintf "%d:true -> %d" from t
+          :: Printf.sprintf "%d:false -> %d" from f
           :: edges
       in
       build_edges edges to_visit id
