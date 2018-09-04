@@ -1,4 +1,40 @@
 (*
+fn fib(n: int) -> int {
+  let a = 0;
+  let b = 1;
+  while (n > 0) {
+    let c = b;
+    b = a + b;
+    a = c;
+    n = n - 1;
+  }
+  return a;
+}
+*)
+
+let add_assign var op =
+  Tac.add_instr (Assign (var, op))
+
+let def =
+  let open Expr in
+  let n, a, b, c = V 0, V 1, V 2, V 3 in
+  {
+    name = "fib";
+    params = [n];
+    body = [
+      Assign (a, Int 0);
+      Assign (b, Int 1);
+      While (Le (Int 0, Var n), [
+          Assign (c, Var b);
+          Assign (b, Add (Var a, Var b));
+          Assign (a, Var c);
+          Assign (n, Sub (Var n, Int 1));
+        ]);
+      Return (Var a);
+    ];
+  }
+
+(*
 def fib
   params:
   0 (n)
@@ -16,14 +52,12 @@ fib2:
   c := b
   b := a + b
   a := c
+  n := n - 1
   goto fib1
 
 fib3:
   return a
 *)
-
-let add_assign var op =
-  Tac.add_instr (Assign (var, op))
 
 let prog =
   let open Tac in
@@ -50,6 +84,8 @@ let prog =
     |> add_assign c (Var b)
     |> add_assign b (Add (a, b))
     |> add_assign a (Var c)
+    |> add_assign c (Int 1)
+    |> add_assign n (Sub (n, c))
     |> set_succ (Goto (block_id fib1))
   in
   let fib3 =
@@ -65,5 +101,6 @@ let prog =
   |> add_block fib3
 
 let () =
+  print_endline (Expr.string_of_def def) ;
   let out = open_out "target/tac.dot" in
   output_string out (Tac.graphviz prog)
