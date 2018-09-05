@@ -45,6 +45,7 @@ type block = {
      front of the list (for more efficient construction). *)
   instrs: instr list;
   succ: succ option;
+  tag: string;
 }
 
 type def = {
@@ -75,6 +76,7 @@ let new_block (def: def): block =
     block_id = BlockId id;
     instrs = [];
     succ = None;
+    tag = "";
   }
 
 let add_instr (instr: instr) (block: block): block =
@@ -83,8 +85,14 @@ let add_instr (instr: instr) (block: block): block =
 let set_succ (succ: succ) (block: block): block =
   { block with succ = Some succ }
 
+let set_tag (tag: string) (block: block): block =
+  { block with tag }
+
 let block_id (block: block): block_id =
   block.block_id
+
+let succ (block: block): succ option =
+  block.succ
 
 let add_block (block: block) (def: def): def =
   { def with blocks = def.blocks |> IdMap.add (block_id block) block }
@@ -138,7 +146,8 @@ let graphviz (def: def): string =
     let (BlockId id) = block.block_id in
     let instrs = block.instrs |> List.map fmt_instr in
     let succ = fmt_succ block.succ in
-    Printf.sprintf "%d[label=\"{bb%d|%s}\"]" id id
+    Printf.sprintf "%d[label=\"{%sbb%d|%s}\"]"
+      id (if block.tag <> "" then block.tag ^ ": " else "") id
       (succ :: instrs |> List.rev |> String.concat "\\l")
   in
   let rec build_edges edges to_visit id =

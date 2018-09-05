@@ -16,11 +16,12 @@ let add_assign var op =
   Tac.add_instr (Assign (var, op))
 
 let fib =
-  let open Expr in
+  let open Ast in
   let n, a, b, c = V 0, V 1, V 2, V 3 in
   {
     name = "fib";
     params = [n];
+    vars = [a; b; c];
     body = [
       Assign (a, Int 0);
       Assign (b, Int 1);
@@ -35,11 +36,12 @@ let fib =
   }
 
 let collatz =
-  let open Expr in
+  let open Ast in
   let max, x, n, steps = V 0, V 1, V 2, V 3 in
   {
     name = "collatz";
     params = [max];
+    vars = [x; n; steps];
     body = [
       Assign (n, Int 2);
       Assign (steps, Int 0);
@@ -58,7 +60,7 @@ let collatz =
               Assign (steps, Add (Var steps, Int 1));
             ]);
         ]);
-      Return (Int 0);
+      Return (Var steps);
     ]
   }
 
@@ -129,8 +131,12 @@ let prog =
   |> add_block fib3
 
 let () =
-  print_endline (Expr.string_of_def fib) ;
+  print_endline (Ast.string_of_def fib) ;
   print_newline () ;
-  print_endline (Expr.string_of_def collatz) ;
+  print_endline (Ast.string_of_def collatz) ;
+  let out = open_out "target/fib-tac.dot" in
+  fib |> Ast.compile |> Tac.graphviz |> output_string out ;
+  let out = open_out "target/collatz-tac.dot" in
+  collatz |> Ast.compile |> Tac.graphviz |> output_string out ;
   let out = open_out "target/tac.dot" in
   output_string out (Tac.graphviz prog)

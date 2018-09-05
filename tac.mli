@@ -38,7 +38,10 @@ val new_block : def -> block
 
 val add_instr : instr -> block -> block
 val set_succ : succ -> block -> block
+val set_tag : string -> block -> block
+
 val block_id : block -> block_id
+val succ : block -> succ option
 
 val add_block : block -> def -> def
 val add_param : var -> def -> def
