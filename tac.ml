@@ -146,8 +146,12 @@ let graphviz (def: def): string =
     let (BlockId id) = block.block_id in
     let instrs = block.instrs |> List.map fmt_instr in
     let succ = fmt_succ block.succ in
-    Printf.sprintf "%d[label=\"{%sbb%d|%s}\"]"
+    Printf.sprintf "%d[label=\"{%sbb%d|%s%s}\"]"
       id (if block.tag <> "" then block.tag ^ ": " else "") id
+      (if def.entry = Some block.block_id && def.params <> [] then
+         "(" ^ (def.params |> List.map (fun (Var v: var) -> Printf.sprintf "x%d" v) |> String.concat ", ") ^ ")|"
+       else
+         "")
       (succ :: instrs |> List.rev |> String.concat "\\l")
   in
   let rec build_edges edges to_visit id =
