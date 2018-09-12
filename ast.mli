@@ -8,6 +8,7 @@ type aexp
   | Sub of aexp * aexp
   | Mul of aexp * aexp
   | Div of aexp * aexp
+  | Read of aexp
 and bexp
   = Bool of bool
   | Lt of aexp * aexp
@@ -18,8 +19,10 @@ and bexp
 
 type stmt
   = While of bexp * stmt list
+  | For of var * aexp * aexp * stmt list
   | If of bexp * stmt list * stmt list
   | Assign of var * aexp
+  | Write of aexp * aexp
   | Return of aexp
 
 type def = {

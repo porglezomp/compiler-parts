@@ -1,7 +1,7 @@
 DOT=$(wildcard target/*.dot)
 SVG=$(DOT:%.dot=%.svg)
 
-all: target/ target/test target/test2 target/test3 $(SVG)
+all: target/ target/test target/test2 target/test3 target/test4 $(SVG)
 
 target/test: graph.mli graph.ml conflict.mli conflict.ml test.ml
 	ocamlopt.opt $^ -o $@
@@ -11,6 +11,9 @@ target/test2: tac.mli tac.ml ast.mli ast.ml test2.ml
 
 target/test3: dom.mli dom.ml test3.ml
 	ocamlopt.opt $^ -o $@
+
+target/test4: tac.mli tac.ml ast.mli ast.ml test4.ml
+	ocamlopt.opt str.cmxa $^ -o $@
 
 target/%.svg: target/%.dot
 	dot $< -Tsvg > $@

@@ -8,6 +8,7 @@ type aexp
   | Sub of aexp * aexp
   | Mul of aexp * aexp
   | Div of aexp * aexp
+  | Read of aexp
 and bexp
   = Bool of bool
   | Lt of aexp * aexp
@@ -18,8 +19,10 @@ and bexp
 
 type stmt
   = While of bexp * stmt list
+  | For of var * aexp * aexp * stmt list
   | If of bexp * stmt list * stmt list
   | Assign of var * aexp
+  | Write of aexp * aexp
   | Return of aexp
 
 type def = {
@@ -61,6 +64,10 @@ let rec compile_aexp
   | Sub (l, r) -> abinop state dest l r (fun l r -> Tac.Sub (l, r))
   | Mul (l, r) -> abinop state dest l r (fun l r -> Tac.Mul (l, r))
   | Div (l, r) -> abinop state dest l r (fun l r -> Tac.Div (l, r))
+  | Read addr ->
+    let tac, _, block, _ = addr |> compile_aexp state dest in
+    let block = block |> Tac.add_instr (Tac.Assign (dest, Load (Mem (dest, 0)))) in
+    tac, vars, block, alive
 and compile_bexp
     (state: compile_state) (dest: Tac.var) (exp: bexp): compile_state =
   match exp with
@@ -96,6 +103,9 @@ let rec compile_stmt (state: compile_state) (stmt: stmt): compile_state =
         |> add_block (body |> set_succ (Goto (block_id head)))
       ) in
     tac, vars, tail, true
+  | For (i, b, e, s) ->
+    let state = compile_stmt state (Assign (i, b)) in
+    compile_stmt state (While (Lt(Var i, e), s @ [Assign (i, Add(Var i, Int 1))]))
   | If (c, t, f) ->
     let cond = Tac.new_var tac in
     let tac, _, block, _ = c |> compile_bexp state cond in
@@ -120,6 +130,13 @@ let rec compile_stmt (state: compile_state) (stmt: stmt): compile_state =
   | Assign (v, e) ->
     let var = vars |> VarMap.find v in
     e |> compile_aexp state var
+  | Write (a, e) ->
+    let dst = Tac.new_var tac in
+    let tac, _, block, _ = a |> compile_aexp state dst in
+    let res = Tac.new_var tac in
+    let tac, _, block, _ = e |> compile_aexp (tac, vars, block, alive) res in
+    let block = block |> Tac.add_instr (Store (Mem (dst, 0), res)) in
+    tac, vars, block, true
   | Return e ->
     let res = Tac.new_var tac in
     let tac, vars, block, alive = e |> compile_aexp state res in
@@ -152,7 +169,8 @@ let compile (def: def): Tac.def =
 
 let a_prec (exp: aexp): int =
   match exp with
-  | Var _ | Int _ | ToInt _ -> 30
+  | Var _ | Int _ | ToInt _ -> 40
+  | Read _ -> 30
   | Mul _ | Div _ -> 20
   | Add _ | Sub _ -> 10
 
@@ -170,6 +188,8 @@ let rec string_of_aexp (exp: aexp): string =
     Printf.sprintf "%s * %s" (pastring p l) (pastring (p+1) r)
   | Div (l, r) ->
     Printf.sprintf "%s / %s" (pastring p l) (pastring (p+1) r)
+  | Read addr ->
+    Printf.sprintf "[%s]" (string_of_aexp addr)
 and pastring (prec: int) (exp: aexp): string =
   let prec' = a_prec exp in
   let text = string_of_aexp exp in
@@ -209,8 +229,18 @@ end"
       (string_of_bexp c)
       (string_of_stmt_list t |> indent 2)
       (string_of_stmt_list f |> indent 2)
+  | For (V i, b, e, s) ->
+    Printf.sprintf "for x%d := %s to %s do
+%s
+end"
+      i
+      (string_of_aexp b)
+      (string_of_aexp e)
+      (string_of_stmt_list s |> indent 2)
   | Assign (V x, e) ->
     Printf.sprintf "x%d := %s" x (string_of_aexp e)
+  | Write (dst, e) ->
+    Printf.sprintf "[%s] := %s" (string_of_aexp dst) (string_of_aexp e)
   | Return e ->
     Printf.sprintf "return %s" (string_of_aexp e)
 and string_of_stmt_list (stmts: stmt list): string =
