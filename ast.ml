@@ -33,139 +33,133 @@ type def = {
 }
 
 module VarMap = Map.Make(struct type t = var let compare = compare end)
-type compile_state = Tac.def * Tac.var VarMap.t * Tac.block * bool
+type var_map = Tac.var VarMap.t
 
-let binop (comp: compile_state -> Tac.var -> 'e -> compile_state)
-    (state: compile_state) (dest: Tac.var) (l: 'e) (r: 'e)
-    (op : Tac.var -> Tac.var -> Tac.op): compile_state =
-  let tac, _, _, _ = state in
+let binop (comp: Tac.def -> Tac.var -> 'e -> Tac.def)
+    (tac: Tac.def) (dest: Tac.var) (l: 'e) (r: 'e)
+    (op : Tac.var -> Tac.var -> Tac.op): Tac.def =
   let ldest = Tac.new_var tac in
-  let state = l |> comp state ldest in
-  let tac, vars, block, alive = r |> comp state dest in
-  let block = block |> Tac.add_instr (Tac.Assign (dest, op ldest dest)) in
-  tac, vars, block, alive
+  let state = l |> comp tac ldest in
+  let tac = r |> comp state dest in
+  let tac = tac |> Tac.add_instr (Tac.Assign (dest, op ldest dest)) in
+  tac
 
 let rec compile_aexp
-    (state: compile_state) (dest: Tac.var) (exp: aexp): compile_state =
-  let tac, vars, block, alive = state in
+    (vars: var_map) (tac: Tac.def) (dest: Tac.var) (exp: aexp): Tac.def =
+  let abinop = abinop vars tac dest in
   match exp with
-  | ToInt b -> compile_bexp state dest b
+  | ToInt b -> compile_bexp vars tac dest b
   | Int i ->
-    let block = block |> Tac.add_instr (Tac.Assign (dest, Tac.Int i)) in
-    tac, vars, block, alive
+    let tac = tac |> Tac.add_instr (Tac.Assign (dest, Tac.Int i)) in
+    tac
   | Var v ->
     let v = vars |> VarMap.find v in
     if v = dest then
-      state
+      tac
     else
-      let block = block |> Tac.add_instr (Tac.Assign (dest, Tac.Var v)) in
-      tac, vars, block, alive
-  | Add (l, r) -> abinop state dest l r (fun l r -> Tac.Add (l, r))
-  | Sub (l, r) -> abinop state dest l r (fun l r -> Tac.Sub (l, r))
-  | Mul (l, r) -> abinop state dest l r (fun l r -> Tac.Mul (l, r))
-  | Div (l, r) -> abinop state dest l r (fun l r -> Tac.Div (l, r))
+      tac |> Tac.add_instr (Tac.Assign (dest, Tac.Var v))
+  | Add (l, r) -> abinop l r (fun l r -> Tac.Add (l, r))
+  | Sub (l, r) -> abinop l r (fun l r -> Tac.Sub (l, r))
+  | Mul (l, r) -> abinop l r (fun l r -> Tac.Mul (l, r))
+  | Div (l, r) -> abinop l r (fun l r -> Tac.Div (l, r))
   | Read addr ->
-    let tac, _, block, _ = addr |> compile_aexp state dest in
-    let block = block |> Tac.add_instr (Tac.Assign (dest, Load (Mem (dest, 0)))) in
-    tac, vars, block, alive
+    let tac = addr |> compile_aexp vars tac dest in
+    let tac = tac |> Tac.add_instr (Tac.Assign (dest, Load (Mem (dest, 0)))) in
+    tac
 and compile_bexp
-    (state: compile_state) (dest: Tac.var) (exp: bexp): compile_state =
+    (vars: var_map) (tac: Tac.def) (dest: Tac.var) (exp: bexp): Tac.def =
   match exp with
-  | Bool b -> compile_aexp state dest (Int (if b then 1 else 0))
-  | Lt (l, r) -> abinop state dest l r (fun l r -> Tac.Lt (l, r))
-  | Le (l, r) -> abinop state dest l r (fun l r -> Tac.Le (l, r))
-  | Eq (l, r) -> abinop state dest l r (fun l r -> Tac.Eq (l, r))
-  | Not b -> compile_aexp state dest (Sub (Int 1, ToInt b))
-  | And (l, r) -> bbinop state dest l r (fun l r -> Tac.Mul (l, r))
-and abinop state dest l r op: compile_state =
-  binop compile_aexp state dest l r op
-and bbinop state dest l r op: compile_state =
-  binop compile_bexp state dest l r op
+  | Bool b -> compile_aexp vars tac dest (Int (if b then 1 else 0))
+  | Lt (l, r) -> abinop vars tac dest l r (fun l r -> Tac.Lt (l, r))
+  | Le (l, r) -> abinop vars tac dest l r (fun l r -> Tac.Le (l, r))
+  | Eq (l, r) -> abinop vars tac dest l r (fun l r -> Tac.Eq (l, r))
+  | Not b -> compile_aexp vars tac dest (Sub (Int 1, ToInt b))
+  | And (l, r) -> bbinop vars tac dest l r (fun l r -> Tac.Mul (l, r))
+and abinop vars tac dest l r op: Tac.def =
+  binop (compile_aexp vars) tac dest l r op
+and bbinop vars tac dest l r op: Tac.def =
+  binop (compile_bexp vars) tac dest l r op
 
-let rec compile_stmt (state: compile_state) (stmt: stmt): compile_state =
-  let tac, vars, block, alive = state in
+let rec compile_stmt (vars: Tac.var VarMap.t) (tac: Tac.def) (stmt: stmt): Tac.def =
   match stmt with
   | While (c, b) ->
+    let block = Tac.focused tac in
+
     let cond = Tac.new_var tac in
     let head = Tac.new_block tac in
-    let tac, _, head, _ = c |> compile_bexp (tac, vars, head, true) cond in
+    let tac = tac |> Tac.focus head in
+    let tac = c |> compile_bexp vars tac cond in
+    let head = Tac.focused tac in
 
     let body_head = Tac.new_block tac in
-    let tac, _, body, _ = b |> List.fold_left compile_stmt
-                         (tac, vars, body_head, true) in
+    let tac = tac |> Tac.focus body_head in
+    let tac = b |> List.fold_left (compile_stmt vars) tac in
+    let body = Tac.focused tac in
 
     let tail = Tac.new_block tac in
     let tac = Tac.(
         tac
-        |> add_block (block |> set_succ (Goto (block_id head)))
-        |> add_block (head |> set_succ
-                        (GotoIf (cond, block_id body_head, block_id tail)))
-        |> add_block (body |> set_succ (Goto (block_id head)))
+        |> focus block |> set_succ (Goto head)
+        |> focus head |> set_succ (GotoIf (cond, body_head, tail))
+        |> focus body |> set_succ (Goto head)
+        |> focus tail
       ) in
-    tac, vars, tail, true
+    tac
   | For (i, b, e, s) ->
-    let state = compile_stmt state (Assign (i, b)) in
-    compile_stmt state (While (Lt(Var i, e), s @ [Assign (i, Add(Var i, Int 1))]))
+    let tac = compile_stmt vars tac (Assign (i, b)) in
+    let cond = Lt(Var i, e) in
+    let body = s @ [Assign (i, Add(Var i, Int 1))] in
+    compile_stmt vars tac (While (cond, body))
   | If (c, t, f) ->
     let cond = Tac.new_var tac in
-    let tac, _, block, _ = c |> compile_bexp state cond in
+    let tac = c |> compile_bexp vars tac cond in
+    let block = Tac.focused tac in
 
-    let t_block = Tac.new_block tac in
-    let tac, _, t_block, _ =
-      t |> List.fold_left compile_stmt (tac, vars, t_block, true) in
+    let tac = tac |> Tac.focus (Tac.new_block tac) in
+    let tac = t |> List.fold_left (compile_stmt vars) tac in
+    let t_block = Tac.focused tac in
 
-    let f_block = Tac.new_block tac in
-    let tac, _, f_block, _ =
-      f |> List.fold_left compile_stmt (tac, vars, f_block, true) in
+    let tac = tac |> Tac.focus (Tac.new_block tac) in
+    let tac = f |> List.fold_left (compile_stmt vars) tac in
+    let f_block = Tac.focused tac in
 
     let tail = Tac.new_block tac in
-    let tac = Tac.(
-        tac
-        |> add_block (block |> set_succ
-                        (GotoIf (cond, block_id t_block, block_id f_block)))
-        |> add_block (t_block |> set_succ (Goto (block_id tail)))
-        |> add_block (f_block |> set_succ (Goto (block_id tail)))
-      ) in
-    tac, vars, tail, true
+    Tac.(
+      tac
+      |> focus block |> set_succ (GotoIf (cond, t_block, f_block))
+      |> focus t_block |> set_succ (Goto tail)
+      |> focus f_block |> set_succ (Goto tail)
+      |> focus tail
+    )
   | Assign (v, e) ->
     let var = vars |> VarMap.find v in
-    e |> compile_aexp state var
+    e |> compile_aexp vars tac var
   | Write (a, e) ->
     let dst = Tac.new_var tac in
-    let tac, _, block, _ = a |> compile_aexp state dst in
+    let tac = a |> compile_aexp vars tac dst in
     let res = Tac.new_var tac in
-    let tac, _, block, _ = e |> compile_aexp (tac, vars, block, alive) res in
-    let block = block |> Tac.add_instr (Store (Mem (dst, 0), res)) in
-    tac, vars, block, true
+    let tac = e |> compile_aexp vars tac res in
+    tac |> Tac.add_instr (Store (Mem (dst, 0), res))
   | Return e ->
     let res = Tac.new_var tac in
-    let tac, vars, block, alive = e |> compile_aexp state res in
-    let block = block |> Tac.set_succ (Tac.Return res) in
-    let tac = tac |> Tac.add_block block in
+    let tac = e |> compile_aexp vars tac res in
+    let tac = tac |> Tac.set_succ (Tac.Return res) in
     (* After the return, we're in an unreachable block. *)
-    let block = Tac.new_block tac in
-    tac, vars, block, false
+    tac |> Tac.focus (Tac.new_block tac)
 
-exception InvalidSuccessor of Tac.block * Tac.def
+exception InvalidSuccessor of Tac.block_id * Tac.def
 let compile (def: def): Tac.def =
   let open Tac in
   let tac = new_def () in
   let vars = (def.params @ def.vars) |> List.fold_left (fun vars param ->
       vars |> VarMap.add param (new_var tac)
     ) VarMap.empty in
-  let entry = new_block tac |> set_tag "Entry" in
-  let tac = tac |> set_entry entry in
-  let tac, _, block, alive =
-    def.body |> List.fold_left compile_stmt (tac, vars, entry, true) in
-  match succ block with
-  | Some (Return _) -> tac |> add_block block
-  | Some _ -> raise (InvalidSuccessor (block, tac))
-  | None when not alive -> tac
-  | None ->
-    let res = new_var tac in
-    tac |> add_block (block
-                      |> add_instr (Assign (res, Int 0))
-                      |> set_succ (Return res))
+  let body = match List.rev def.body with
+    | Return _ :: _ -> def.body
+    | _ -> def.body @ [Return (Int 0)]
+  in
+  let tac = body |> List.fold_left (compile_stmt vars) tac in
+  tac |> remove_empty_blocks
 
 let a_prec (exp: aexp): int =
   match exp with

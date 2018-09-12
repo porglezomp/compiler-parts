@@ -97,38 +97,30 @@ let prog =
   let fib1 = new_block def in
   let fib2 = new_block def in
   let fib3 = new_block def in
-  let fib0 =
-    fib0
-    |> add_assign a (Int 0)
-    |> add_assign b (Int 1)
-    |> set_succ (Goto (block_id fib1))
-  in
-  let fib1 =
-    fib1
-    |> add_assign c (Int 0)
-    |> add_assign c (Le (c, n))
-    |> set_succ (GotoIf (c, block_id fib2, block_id fib3))
-  in
-  let fib2 =
-    fib2
-    |> add_assign c (Var b)
-    |> add_assign b (Add (a, b))
-    |> add_assign a (Var c)
-    |> add_assign c (Int 1)
-    |> add_assign n (Sub (n, c))
-    |> set_succ (Goto (block_id fib1))
-  in
-  let fib3 =
-    fib3
-    |> set_succ (Return a)
-  in
   def
   |> add_param n
-  |> set_entry fib0
-  |> add_block fib0
-  |> add_block fib1
-  |> add_block fib2
-  |> add_block fib3
+  |> set_succ (Goto fib0)
+
+  |> focus fib0
+  |> add_assign a (Int 0)
+  |> add_assign b (Int 1)
+  |> set_succ (Goto fib1)
+
+  |> focus fib1
+  |> add_assign c (Int 0)
+  |> add_assign c (Le (c, n))
+  |> set_succ (GotoIf (c, fib2, fib3))
+
+  |> focus fib2
+  |> add_assign c (Var b)
+  |> add_assign b (Add (a, b))
+  |> add_assign a (Var c)
+  |> add_assign c (Int 1)
+  |> add_assign n (Sub (n, c))
+  |> set_succ (Goto fib1)
+
+  |> focus fib3
+  |> set_succ (Return a)
 
 let () =
   print_endline (Ast.string_of_def fib) ;
