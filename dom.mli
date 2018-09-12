@@ -35,3 +35,5 @@ val add_pred : id -> id -> cfg -> cfg
 (* *)
 
 val dominators : cfg -> IdSet.t IdMap.t
+val backedges : IdSet.t IdMap.t -> cfg -> (id * id) list
+val graphviz : cfg -> string

@@ -112,3 +112,37 @@ let dominators (cfg: cfg): IdSet.t IdMap.t =
     |> IdMap.add entry (IdSet.singleton entry)
   in
   step_dom dom
+
+let backedges (dom: IdSet.t IdMap.t) (cfg: cfg): (id * id) list =
+  [] |> IdMap.fold (fun block succ backedges ->
+      let dom = dom |> IdMap.find block in
+      backedges |> IdSet.fold (fun next edges ->
+          if dom |> IdSet.mem next then
+            (block, next) :: edges
+          else edges
+        ) succ
+    ) cfg.succ
+
+let graphviz (cfg: cfg): string =
+  let dom = dominators cfg in
+  let nodes = [] |> IdSet.fold (fun block nodes ->
+      string_of_block block :: nodes
+    ) cfg.blocks
+  in
+  let edges = [] |> IdMap.fold (fun block succ edges ->
+      let dom = dom |> IdMap.find block in
+      edges |> IdSet.fold (fun next edges ->
+          let edge = if dom |> IdSet.mem next then
+              Printf.sprintf "%s -> %s [dir=back]"
+                (string_of_block next)
+                (string_of_block block)
+            else
+              Printf.sprintf "%s -> %s"
+                (string_of_block block)
+                (string_of_block next)
+          in
+          edge :: edges
+        ) succ
+    ) cfg.succ
+  in
+  String.concat "\n" (["digraph {"] @ nodes @ edges @ ["}"])
