@@ -9,7 +9,7 @@ target/test: graph.mli graph.ml conflict.mli conflict.ml test.ml
 target/test2: tac.mli tac.ml ast.mli ast.ml test2.ml
 	ocamlopt.opt str.cmxa $^ -o $@
 
-target/test3: dom.mli dom.ml test3.ml
+target/test3: cfg.mli cfg.ml dom.mli dom.ml test3.ml
 	ocamlopt.opt $^ -o $@
 
 target/test4: tac.mli tac.ml ast.mli ast.ml test4.ml
