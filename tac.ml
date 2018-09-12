@@ -310,3 +310,31 @@ node [shape=\"record\"]
 " ^ (nodes |> String.concat "\n")
   ^ (edges |> String.concat "\n")
   ^ "\n}"
+
+module Cfg : S.CFG = struct
+  type id = block_id
+  type edge = id * id
+  type t = def
+
+  module IdMap = BlockMap
+  module IdSet = BlockSet
+
+  (* *)
+
+  let string_of_block = string_of_block
+  let string_of_block_set = string_of_block_set
+
+  (* *)
+
+  let blocks = blocks
+  let entry = entry
+  let final def = failwith "no final"
+  let pred = pred
+  let succ = succ
+
+  (* *)
+
+  let add_block = focus
+  let add_succ id id t: t =
+    failwith "foo"
+end

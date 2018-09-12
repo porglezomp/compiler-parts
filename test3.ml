@@ -1,3 +1,5 @@
+module Dom = Dom.Make(Cfg)
+
 let () =
   let cfg = Cfg.make () in
   let entry = Cfg.entry cfg in

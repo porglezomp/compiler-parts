@@ -81,3 +81,5 @@ val remove_empty_blocks : def -> def
 val string_of_block : block_id -> string
 val string_of_block_set : BlockSet.t -> string
 val graphviz : def -> string
+
+module Cfg : S.CFG

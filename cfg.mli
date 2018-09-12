@@ -1,16 +1,9 @@
 type id
 type edge = id * id
-
-module IdSet : module type of Set.Make(struct
-    type t = id
-    let compare = compare
-  end)
-module IdMap : module type of Map.Make(struct
-    type t = id
-    let compare = compare
-  end)
-
 type t
+
+module IdMap : Map.S with type key = id
+module IdSet : Set.S with type elt = id
 
 (* *)
 
