@@ -48,4 +48,5 @@ let () =
   print_endline (Ast.string_of_def mat_mult) ;
   let prog = Ast.compile mat_mult in
   let out = open_out "target/mat-mult.dot" in
-  Tac.graphviz prog |> output_string out
+  Tac.graphviz prog |> output_string out ;
+  Tac.blocks prog |> Tac.string_of_block_set |> print_endline

@@ -62,10 +62,24 @@ type def = {
   pred_edges: EdgeSet.t BlockMap.t;
 }
 
+(* Helpful for debugging *)
+
+let string_of_block (Block id: block_id): string =
+  match id with
+  | -1 -> "Final"
+  | 0 -> "Entry"
+  | id -> Printf.sprintf "BB%d" id
+
+let string_of_block_set (set: BlockSet.t): string =
+  Printf.sprintf "{%s}"
+    ([]
+     |> BlockSet.fold (fun block set -> string_of_block block :: set) set
+     |> String.concat ", ")
+
 (* *)
 
 let new_def (): def =
-  let block_ids = BlockSet.of_list [Block 0; Block (-1)] in
+  let block_ids = BlockSet.of_list [Block (-1); Block 0] in
   let blocks =
     BlockMap.empty
     |> BlockMap.add (Block 0) {
@@ -106,7 +120,8 @@ let focus (focus_id: block_id) (def: def): def =
       | None -> Some { block_id = focus_id; instrs = []; succ = None }
       | x -> x)
   in
-  { def with focus_id; blocks }
+  let block_ids = def.block_ids |> BlockSet.add focus_id in
+  { def with focus_id; blocks; block_ids }
 
 let add_instr (instr: instr) (def: def): def =
   let blocks = def.blocks |> BlockMap.update def.focus_id (function
@@ -208,6 +223,7 @@ let remove_empty_blocks (def: def): def =
   { def with
     blocks = def.blocks |> BlockMap.filter (fun id block -> not (
         block.instrs = []
+        && block.block_id <> Block (-1)
         && block.succ = None
         && (try def.succ_edges |> BlockMap.find id |> EdgeSet.is_empty
             with Not_found -> true)
@@ -217,18 +233,6 @@ let remove_empty_blocks (def: def): def =
   }
 
 (* *)
-
-let string_of_block (Block id: block_id): string =
-  match id with
-  | -1 -> "Final"
-  | 0 -> "Entry"
-  | id -> Printf.sprintf "BB%d" id
-
-let string_of_block_set (set: BlockSet.t): string =
-  Printf.sprintf "{%s}"
-    ([]
-     |> BlockSet.fold (fun block set -> string_of_block block :: set) set
-     |> String.concat ", ")
 
 let graphviz (def: def): string =
   let fmt_op op =
@@ -269,16 +273,24 @@ let graphviz (def: def): string =
     | Some (Return (Var x)) -> Printf.sprintf "return x%d\\l" x
   in
   let fmt_block block =
-    let (Block id) = block.block_id in
     let instrs = block.instrs |> List.map fmt_instr in
     let succ = fmt_succ block.succ in
-    Printf.sprintf "%d[label=\"{%s|%s%s}\"]"
-      id
-      (string_of_block block.block_id)
-      (if block.block_id = Block (-1) && def.params <> [] then
-         "(" ^ (def.params |> List.map (fun (Var v: var) -> Printf.sprintf "x%d" v) |> String.concat ", ") ^ ")|"
-       else "")
-      (succ :: instrs |> List.rev |> String.concat "\\l")
+    match block.block_id with
+    | Block (-1) ->
+      Printf.sprintf "-1[shape=oval,label=\"%s\"]"
+        (string_of_block block.block_id)
+    | Block 0 ->
+      Printf.sprintf "0[label=\"{%s|%s%s}\"]"
+        (string_of_block block.block_id)
+        (if def.params <> [] then
+           "(" ^ (def.params |> List.map (fun (Var v: var) -> Printf.sprintf "x%d" v) |> String.concat ", ") ^ ")|"
+         else "")
+        (succ :: instrs |> List.rev |> String.concat "\\l")
+    | Block id ->
+      Printf.sprintf "%d[label=\"{%s|%s}\"]"
+        id
+        (string_of_block block.block_id)
+        (succ :: instrs |> List.rev |> String.concat "\\l")
   in
   let rec build_edges edges to_visit id =
     if to_visit |> BlockSet.is_empty then
@@ -288,7 +300,10 @@ let graphviz (def: def): string =
       let block = def.blocks |> BlockMap.find id in
       let (Block from) = id in
       let edges = match block.succ with
-        | None | Some (Return _) -> edges
+        | None -> edges
+        | Some (Return _) ->
+          Printf.sprintf "%d -> %d" from (-1)
+          :: edges
         | Some (Goto (Block next)) ->
           Printf.sprintf "%d -> %d" from next
           :: edges
@@ -302,7 +317,8 @@ let graphviz (def: def): string =
       let id = to_visit |> BlockSet.choose in
       build_edges edges to_visit id
   in
-  let nodes = BlockMap.fold (fun _ block acc ->
+  let nodes = BlockMap.fold (fun (Block id) block acc ->
+      Printf.printf "%d\n" id ;
       fmt_block block :: acc
     ) def.blocks [] in
   let to_visit = BlockMap.fold (fun k _ -> BlockSet.add k)
