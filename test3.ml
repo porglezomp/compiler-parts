@@ -28,7 +28,7 @@ let () =
     |> Cfg.add_succ bb7 bb8
     |> Cfg.add_succ bb8 final
   in
-  let dominators = Dom.dominators cfg in
+  let dominators = Dom.dom cfg in
   let backedges = cfg |> Dom.backedges dominators in
   let loops = cfg |> Dom.loops backedges in
 

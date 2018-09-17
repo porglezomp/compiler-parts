@@ -15,6 +15,7 @@ module type CFG = sig
 
   val blocks : t -> IdSet.t
   val entry : t -> id
+  val final : t -> id
   val pred : id -> t -> IdSet.t
   val succ : id -> t -> IdSet.t
 end

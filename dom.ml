@@ -1,15 +1,11 @@
-module Make (Cfg: S.CFG) = struct
+module ComputeDom (Cfg: S.CFG) = struct
   module IdSet = Cfg.IdSet
   module IdMap = Cfg.IdMap
 
-  type loop = {
-    header: Cfg.id;
-    body: IdSet.t;
-    back_edges: Cfg.edge list;
-    exit_edges: Cfg.edge list;
-  }
+  type domsets = Cfg.IdSet.t Cfg.IdMap.t
+  type idomset = Cfg.id Cfg.IdMap.t
 
-  let dominators (cfg: Cfg.t): IdSet.t IdMap.t =
+  let dominators (cfg: Cfg.t): domsets =
     let blocks = Cfg.blocks cfg in
     let rec step_dom dom =
       let rec go changed blocks dom =
@@ -44,7 +40,49 @@ module Make (Cfg: S.CFG) = struct
     in
     step_dom dom
 
-  let backedges (dom: IdSet.t IdMap.t) (cfg: Cfg.t): Cfg.edge list =
+  let immediate (dom: domsets) (cfg: Cfg.t): idomset =
+    failwith "unimplemented"
+end
+
+module Reversed (Cfg: S.CFG) = struct
+  include Cfg
+
+  let entry = Cfg.final
+  let final = Cfg.entry
+  let pred = Cfg.succ
+  let succ = Cfg.pred
+end
+
+module Make (Cfg: S.CFG) = struct
+  module IdSet = Cfg.IdSet
+  module IdMap = Cfg.IdMap
+
+  type loop = {
+    header: Cfg.id;
+    body: IdSet.t;
+    back_edges: Cfg.edge list;
+    exit_edges: Cfg.edge list;
+  }
+
+  type domsets = Cfg.IdSet.t Cfg.IdMap.t
+  type idomset = Cfg.id Cfg.IdMap.t
+
+  module C = ComputeDom(Cfg)
+  module RC = ComputeDom(Reversed(Cfg))
+
+  let dom (cfg: Cfg.t): domsets =
+    C.dominators cfg
+
+  let pdom (cfg: Cfg.t): domsets =
+    RC.dominators cfg
+
+  let idom (dom: domsets) (cfg: Cfg.t): idomset =
+    C.immediate dom cfg
+
+  let ipdom (dom: domsets) (cfg: Cfg.t): idomset =
+    RC.immediate dom cfg
+
+  let backedges (dom: domsets) (cfg: Cfg.t): Cfg.edge list =
     [] |> IdSet.fold (fun block backedges ->
         let succ = cfg |> Cfg.succ block in
         let dom = dom |> IdMap.find block in
@@ -95,7 +133,7 @@ module Make (Cfg: S.CFG) = struct
   (* *)
 
   let graphviz (cfg: Cfg.t): string =
-    let dom = dominators cfg in
+    let dom = dom cfg in
     let nodes, edges = ([], []) |> IdSet.fold (fun block (nodes, edges) ->
         let succ = cfg |> Cfg.succ block in
         let dom = dom |> IdMap.find block in

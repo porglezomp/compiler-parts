@@ -65,11 +65,15 @@ type def = {
 (* *)
 
 let new_def (): def =
-  let block_ids = BlockSet.singleton (Block 0) in
+  let block_ids = BlockSet.of_list [Block 0; Block (-1)] in
   let blocks =
     BlockMap.empty
     |> BlockMap.add (Block 0) {
       block_id = Block 0;
+      instrs = []; succ = None;
+    }
+    |> BlockMap.add (Block (-1)) {
+      block_id = Block (-1);
       instrs = []; succ = None;
     }
   in
@@ -124,6 +128,7 @@ let set_succ (succ: succ) (def: def): def =
       | None -> failwith "invariant failure in set_succ, no block focused"
       | Some block -> Some { block with succ = Some succ })
   in
+  let succ = match succ with | Return _ -> Goto (Block (-1)) | _ -> succ in
   (* TODO: fix to handle already set successor *)
   let succ_edges, pred_edges, edges = match succ with
     | Goto next ->
@@ -156,7 +161,7 @@ let set_succ (succ: succ) (def: def): def =
           )
       in
       succ_edges, pred_edges, edges
-    | Return _ -> def.succ_edges, def.pred_edges, def.edges
+    | Return _ -> failwith "Return case unreachable"
   in
   { def with blocks; succ_edges; pred_edges }
 
@@ -168,7 +173,8 @@ let add_param (var: var) (def: def): def =
 (* *)
 
 let blocks (def: def): BlockSet.t = def.block_ids
-let entry (def: def): block_id = Block (-1)
+let entry (def: def): block_id = Block 0
+let final (def: def): block_id = Block (-1)
 let focused (def: def): block_id = def.focus_id
 
 let pred_edges (id: block_id) (def: def): EdgeSet.t =
@@ -214,6 +220,7 @@ let remove_empty_blocks (def: def): def =
 
 let string_of_block (Block id: block_id): string =
   match id with
+  | -1 -> "Final"
   | 0 -> "Entry"
   | id -> Printf.sprintf "BB%d" id
 
@@ -319,22 +326,12 @@ module Cfg : S.CFG = struct
   module IdMap = BlockMap
   module IdSet = BlockSet
 
-  (* *)
-
   let string_of_block = string_of_block
   let string_of_block_set = string_of_block_set
 
-  (* *)
-
   let blocks = blocks
   let entry = entry
-  let final def = failwith "no final"
+  let final = final
   let pred = pred
   let succ = succ
-
-  (* *)
-
-  let add_block = focus
-  let add_succ id id t: t =
-    failwith "foo"
 end
