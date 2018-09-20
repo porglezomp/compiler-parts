@@ -45,8 +45,16 @@ let mat_mult =
   }
 
 let () =
+  let module Dom = Dom.Make(Tac.Cfg) in
+
   print_endline (Ast.string_of_def mat_mult) ;
   let prog = Ast.compile mat_mult in
   let out = open_out "target/mat-mult.dot" in
   Tac.graphviz prog |> output_string out ;
+
+  let dom = Dom.dom prog in
+  let idom = prog |> Dom.idom dom in
+  let out = open_out "target/mat-mult-dom.dot" in
+  Dom.domtree idom |> Dom.domtree_graphviz |> output_string out ;
+
   Tac.blocks prog |> Tac.string_of_block_set |> print_endline
