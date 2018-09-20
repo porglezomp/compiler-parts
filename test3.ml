@@ -29,6 +29,8 @@ let () =
     |> Cfg.add_succ bb8 final
   in
   let dominators = Dom.dom cfg in
+  let idoms = cfg |> Dom.idom dominators in
+  let domtree = Dom.domtree idoms in
   let backedges = cfg |> Dom.backedges dominators in
   let loops = cfg |> Dom.loops backedges in
 
@@ -37,6 +39,20 @@ let () =
       Printf.printf "Block %s: %s\n"
         (Cfg.string_of_block block)
         (Cfg.string_of_block_set dom)
+    ) ;
+
+  print_endline "\nImmediate Dominators:" ;
+  idoms |> Cfg.IdMap.iter (fun block dom ->
+      Printf.printf "Block %s: %s\n"
+        (Cfg.string_of_block block)
+        (Cfg.string_of_block dom)
+    ) ;
+
+  print_endline "\nDomtree:" ;
+  snd domtree |> Cfg.IdMap.iter (fun block children ->
+      Printf.printf "Block %s: %s\n"
+        (Cfg.string_of_block block)
+        (Cfg.string_of_block_set children)
     ) ;
 
   print_endline "\nBackedges:" ;
@@ -59,4 +75,7 @@ let () =
     ) ;
 
   let out = open_out "target/dom.dot" in
-  cfg |> Dom.graphviz |> output_string out
+  cfg |> Dom.graphviz |> output_string out ;
+
+  let out = open_out "target/domtree.dot" in
+  domtree |> Dom.domtree_graphviz |> output_string out

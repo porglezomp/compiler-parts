@@ -41,7 +41,36 @@ module ComputeDom (Cfg: S.CFG) = struct
     step_dom dom
 
   let immediate (dom: domsets) (cfg: Cfg.t): idomset =
-    failwith "unimplemented"
+    let add_idom block map =
+      Printf.printf "Add idom for %s\n" (Cfg.string_of_block block) ;
+      let dom = dom |> IdMap.find block in
+      let rec find_idom search =
+        Printf.printf "Searching idom(%s), candidates: %s\n"
+          (Cfg.string_of_block block)
+          (Cfg.string_of_block_set search) ;
+        match IdSet.choose_opt search with
+        | None -> None
+        | Some pred ->
+          let search =
+            search |> IdSet.remove pred |> IdSet.union (cfg |> Cfg.pred pred)
+          in
+          if dom |> IdSet.mem pred then
+            Some pred
+          else
+            find_idom search
+      in
+      match find_idom (cfg |> Cfg.pred block) with
+      | None ->
+        Printf.printf "idom(%s) = {}\n"
+          (Cfg.string_of_block block) ;
+        map
+      | Some idom ->
+        Printf.printf "idom(%s) = %s\n"
+          (Cfg.string_of_block block)
+          (Cfg.string_of_block idom) ;
+        map |> IdMap.add block idom
+    in
+    IdMap.empty |> IdSet.fold add_idom (Cfg.blocks cfg)
 end
 
 module Reversed (Cfg: S.CFG) = struct
@@ -66,6 +95,7 @@ module Make (Cfg: S.CFG) = struct
 
   type domsets = Cfg.IdSet.t Cfg.IdMap.t
   type idomset = Cfg.id Cfg.IdMap.t
+  type domtree = Cfg.id * domsets
 
   module C = ComputeDom(Cfg)
   module RC = ComputeDom(Reversed(Cfg))
@@ -81,6 +111,28 @@ module Make (Cfg: S.CFG) = struct
 
   let ipdom (dom: domsets) (cfg: Cfg.t): idomset =
     RC.immediate dom cfg
+
+  let domtree (idom: idomset): domtree =
+    let rec add tree idom =
+      match IdMap.choose_opt idom with
+      | None -> tree
+      | Some (child, parent) ->
+        let idom = idom |> IdMap.remove child in
+        let tree = tree |> IdMap.update parent (function
+            | None -> Some (IdSet.singleton child)
+            | Some children -> Some (children |> IdSet.add child)
+          )
+        in
+        idom |> add tree
+    in
+    let rec find_root node =
+      match idom |> IdMap.find_opt node with
+      | None -> node
+      | Some node -> find_root node
+    in
+    let root = find_root (IdMap.choose idom |> snd) in
+    let tree = idom |> add IdMap.empty in
+    root, tree
 
   let backedges (dom: domsets) (cfg: Cfg.t): Cfg.edge list =
     [] |> IdSet.fold (fun block backedges ->
@@ -155,4 +207,24 @@ module Make (Cfg: S.CFG) = struct
       ) (Cfg.blocks cfg)
     in
     String.concat "\n" (["digraph {"] @ nodes @ edges @ ["}"])
+
+  let domtree_graphviz (root, tree: domtree): string =
+    let rec build tree acc =
+      match IdMap.choose_opt tree with
+      | None ->
+        "digraph {" ::
+        "node [shape=\"ellipse\"]" ::
+        Printf.sprintf "%s [peripheries=2]" (Cfg.string_of_block root) ::
+        acc
+      | Some (parent, children) ->
+        let tree = tree |> IdMap.remove parent in
+        let parent = Cfg.string_of_block parent in
+        let acc = acc |> IdSet.fold (fun child acc ->
+            Printf.sprintf "%s -> %s" parent (Cfg.string_of_block child) :: acc
+          ) children
+        in
+        acc |> build tree
+    in
+    ["}"] |> build tree |> String.concat "\n"
+
 end
