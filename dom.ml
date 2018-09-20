@@ -42,12 +42,8 @@ module ComputeDom (Cfg: S.CFG) = struct
 
   let immediate (dom: domsets) (cfg: Cfg.t): idomset =
     let add_idom block map =
-      Printf.printf "Add idom for %s\n" (Cfg.string_of_block block) ;
       let dom = dom |> IdMap.find block in
       let rec find_idom search =
-        Printf.printf "Searching idom(%s), candidates: %s\n"
-          (Cfg.string_of_block block)
-          (Cfg.string_of_block_set search) ;
         match IdSet.choose_opt search with
         | None -> None
         | Some pred ->
@@ -60,15 +56,8 @@ module ComputeDom (Cfg: S.CFG) = struct
             find_idom search
       in
       match find_idom (cfg |> Cfg.pred block) with
-      | None ->
-        Printf.printf "idom(%s) = {}\n"
-          (Cfg.string_of_block block) ;
-        map
-      | Some idom ->
-        Printf.printf "idom(%s) = %s\n"
-          (Cfg.string_of_block block)
-          (Cfg.string_of_block idom) ;
-        map |> IdMap.add block idom
+      | None -> map
+      | Some idom -> map |> IdMap.add block idom
     in
     IdMap.empty |> IdSet.fold add_idom (Cfg.blocks cfg)
 end

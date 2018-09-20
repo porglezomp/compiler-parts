@@ -135,7 +135,7 @@ let set_succ (succ: succ) (def: def): def =
     let id = def.fresh_edge in
     def.fresh_edge <- id + 1 ;
     let edge = { edge_id = Edge id; src; dst } in
-    let edges = def.edges |> EdgeMap.add (Edge id) edge in
+    let edges = edges |> EdgeMap.add (Edge id) edge in
     Edge id, edges
   in
   let block = def.focus_id in
@@ -152,7 +152,7 @@ let set_succ (succ: succ) (def: def): def =
         def.succ_edges
         |> BlockMap.add block (EdgeSet.singleton edge)
       in
-      let pred_edges = def.pred_edges |> BlockMap.update block (function
+      let pred_edges = def.pred_edges |> BlockMap.update next (function
           | None -> Some (EdgeSet.singleton edge)
           | Some pred -> Some (pred |> EdgeSet.add edge))
       in
@@ -178,7 +178,7 @@ let set_succ (succ: succ) (def: def): def =
       succ_edges, pred_edges, edges
     | Return _ -> failwith "Return case unreachable"
   in
-  { def with blocks; succ_edges; pred_edges }
+  { def with blocks; edges; succ_edges; pred_edges }
 
 
 let add_param (var: var) (def: def): def =
@@ -193,12 +193,15 @@ let final (def: def): block_id = Block (-1)
 let focused (def: def): block_id = def.focus_id
 
 let pred_edges (id: block_id) (def: def): EdgeSet.t =
-  def.pred_edges |> BlockMap.find id
+  try def.pred_edges |> BlockMap.find id
+  with Not_found -> EdgeSet.empty
 
 let succ_edges (id: block_id) (def: def): EdgeSet.t =
-  def.succ_edges |> BlockMap.find id
+  try def.succ_edges |> BlockMap.find id
+  with Not_found -> EdgeSet.empty
 
 let edge_src (id: edge_id) (def: def): block_id =
+  flush_all () ;
   (def.edges |> EdgeMap.find id).src
 
 let edge_dst (id: edge_id) (def: def): block_id =
@@ -234,7 +237,29 @@ let remove_empty_blocks (def: def): def =
 
 (* *)
 
+module Cfg = struct
+  type id = block_id
+  type edge = id * id
+  type t = def
+
+  module IdMap = BlockMap
+  module IdSet = BlockSet
+
+  let string_of_block = string_of_block
+  let string_of_block_set = string_of_block_set
+
+  let blocks = blocks
+  let entry = entry
+  let final = final
+  let pred = pred
+  let succ = succ
+end
+
+(* *)
+
 let graphviz (def: def): string =
+  let module Dom = Dom.Make(Cfg) in
+  let dom = Dom.dom def in
   let fmt_op op =
     match op with
     | Int i -> string_of_int i
@@ -299,17 +324,27 @@ let graphviz (def: def): string =
       let to_visit = to_visit |> BlockSet.remove id in
       let block = def.blocks |> BlockMap.find id in
       let (Block from) = id in
+      let fmt_edge a b label =
+        let is_dom = try
+            dom |> Cfg.IdMap.find (Block a) |> Cfg.IdSet.mem (Block b)
+          with Not_found -> false
+        in
+        if is_dom then
+          Printf.sprintf "%d -> %d%s [dir=back, penwidth=2]" b a label
+        else
+          Printf.sprintf "%d%s -> %d" a label b
+      in
       let edges = match block.succ with
         | None -> edges
         | Some (Return _) ->
-          Printf.sprintf "%d -> %d" from (-1)
+          fmt_edge from (-1) ""
           :: edges
         | Some (Goto (Block next)) ->
-          Printf.sprintf "%d -> %d" from next
+          fmt_edge from next ""
           :: edges
         | Some (GotoIf (Var x, Block t, Block f)) ->
-          Printf.sprintf "%d:true -> %d" from t
-          :: Printf.sprintf "%d:false -> %d" from f
+          fmt_edge from t ":true"
+          :: fmt_edge from f ":false"
           :: edges
       in
       build_edges edges to_visit id
@@ -318,7 +353,6 @@ let graphviz (def: def): string =
       build_edges edges to_visit id
   in
   let nodes = BlockMap.fold (fun (Block id) block acc ->
-      Printf.printf "%d\n" id ;
       fmt_block block :: acc
     ) def.blocks [] in
   let to_visit = BlockMap.fold (fun k _ -> BlockSet.add k)
@@ -333,21 +367,3 @@ node [shape=\"record\"]
 " ^ (nodes |> String.concat "\n")
   ^ (edges |> String.concat "\n")
   ^ "\n}"
-
-module Cfg : S.CFG = struct
-  type id = block_id
-  type edge = id * id
-  type t = def
-
-  module IdMap = BlockMap
-  module IdSet = BlockSet
-
-  let string_of_block = string_of_block
-  let string_of_block_set = string_of_block_set
-
-  let blocks = blocks
-  let entry = entry
-  let final = final
-  let pred = pred
-  let succ = succ
-end
