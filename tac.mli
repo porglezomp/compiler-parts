@@ -55,6 +55,9 @@ val add_instr : instr -> def -> def
 val set_succ : succ -> def -> def
 val add_param : var -> def -> def
 
+val seal : block_id -> def -> def
+val fill : block_id -> def -> def
+
 (* *)
 
 val blocks : def -> BlockSet.t
@@ -75,6 +78,7 @@ val edge_dst : edge_id -> def -> block_id
 (* *)
 
 val remove_empty_blocks : def -> def
+val validate : def -> (def, string) result
 
 (* *)
 

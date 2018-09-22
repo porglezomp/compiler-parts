@@ -7,6 +7,7 @@ module BlockMap = Map.Make(struct type t = block_id let compare = compare end)
 module BlockSet = Set.Make(struct type t = block_id let compare = compare end)
 module EdgeMap = Map.Make(struct type t = edge_id let compare = compare end)
 module EdgeSet = Set.Make(struct type t = edge_id let compare = compare end)
+module VarMap = Map.Make(struct type t = var let compare = compare end)
 
 type addr
   = Stack of int
@@ -60,6 +61,9 @@ type def = {
   edges: edge EdgeMap.t;
   succ_edges: EdgeSet.t BlockMap.t;
   pred_edges: EdgeSet.t BlockMap.t;
+  current_def: var BlockMap.t VarMap.t;
+  sealed: BlockSet.t;
+  filled: BlockSet.t;
 }
 
 (* Helpful for debugging *)
@@ -101,6 +105,9 @@ let new_def (): def =
     block_ids; blocks; edges;
     succ_edges = BlockMap.empty;
     pred_edges = BlockMap.empty;
+    current_def = VarMap.empty;
+    sealed = BlockSet.singleton (Block 0);
+    filled = BlockSet.empty;
   }
 
 let new_var (def: def): var =
@@ -124,6 +131,7 @@ let focus (focus_id: block_id) (def: def): def =
   { def with focus_id; blocks; block_ids }
 
 let add_instr (instr: instr) (def: def): def =
+  assert (not (def.filled |> BlockSet.mem def.focus_id)) ;
   let blocks = def.blocks |> BlockMap.update def.focus_id (function
       | None -> failwith "invariant failure in add_instr, no block focused"
       | Some block -> Some { block with instrs = instr :: block.instrs })
@@ -147,6 +155,7 @@ let set_succ (succ: succ) (def: def): def =
   (* TODO: fix to handle already set successor *)
   let succ_edges, pred_edges, edges = match succ with
     | Goto next ->
+      assert (not (def.sealed |> BlockSet.mem next)) ;
       let edge, edges = def.edges |> add_edge block next in
       let succ_edges =
         def.succ_edges
@@ -158,6 +167,8 @@ let set_succ (succ: succ) (def: def): def =
       in
       succ_edges, pred_edges, edges
     | GotoIf (_, t, f) ->
+      assert (not (def.sealed |> BlockSet.mem t)) ;
+      assert (not (def.sealed |> BlockSet.mem f)) ;
       let t_edge, edges = def.edges |> add_edge block t in
       let f_edge, edges = edges |> add_edge block f in
       let succ_edges =
@@ -184,6 +195,12 @@ let set_succ (succ: succ) (def: def): def =
 let add_param (var: var) (def: def): def =
   assert (not (def.params |> List.mem var)) ;
   { def with params = var :: def.params }
+
+let seal (id: block_id) (def: def): def =
+  { def with sealed = def.sealed |> BlockSet.add id }
+
+let fill (id: block_id) (def: def): def =
+  { def with filled = def.filled |> BlockSet.add id }
 
 (* *)
 
@@ -234,6 +251,11 @@ let remove_empty_blocks (def: def): def =
             with Not_found -> true)
       ));
   }
+
+
+let validate (def: def): (def, string) result =
+  (* TODO: Actual validation here *)
+  Ok def
 
 (* *)
 

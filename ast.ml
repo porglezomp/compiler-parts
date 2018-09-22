@@ -97,14 +97,14 @@ let rec compile_stmt (vars: Tac.var VarMap.t) (tac: Tac.def) (stmt: stmt): Tac.d
     let body = Tac.focused tac in
 
     let tail = Tac.new_block tac in
-    let tac = Tac.(
-        tac
-        |> focus block |> set_succ (Goto head)
-        |> focus head |> set_succ (GotoIf (cond, body_head, tail))
-        |> focus body |> set_succ (Goto head)
-        |> focus tail
-      ) in
-    tac
+    Tac.(
+      tac
+      |> focus block |> set_succ (Goto head)
+      |> focus head |> set_succ (GotoIf (cond, body_head, tail))
+      |> focus body |> set_succ (Goto head)
+      |> focus tail
+      |> seal head |> seal body |> seal tail
+    )
   | For (i, b, e, s) ->
     let tac = compile_stmt vars tac (Assign (i, b)) in
     let cond = Lt(Var i, e) in
@@ -130,6 +130,7 @@ let rec compile_stmt (vars: Tac.var VarMap.t) (tac: Tac.def) (stmt: stmt): Tac.d
       |> focus t_block |> set_succ (Goto tail)
       |> focus f_block |> set_succ (Goto tail)
       |> focus tail
+      |> seal block |> seal t_block |> seal f_block |> seal tail
     )
   | Assign (v, e) ->
     let var = vars |> VarMap.find v in
@@ -143,9 +144,12 @@ let rec compile_stmt (vars: Tac.var VarMap.t) (tac: Tac.def) (stmt: stmt): Tac.d
   | Return e ->
     let res = Tac.new_var tac in
     let tac = e |> compile_aexp vars tac res in
-    let tac = tac |> Tac.set_succ (Tac.Return res) in
     (* After the return, we're in an unreachable block. *)
-    tac |> Tac.focus (Tac.new_block tac)
+    Tac.(
+      tac
+      |> set_succ (Return res)
+      |> focus (new_block tac)
+    )
 
 exception InvalidSuccessor of Tac.block_id * Tac.def
 let compile (def: def): Tac.def =
@@ -159,7 +163,9 @@ let compile (def: def): Tac.def =
     | _ -> def.body @ [Return (Int 0)]
   in
   let tac = body |> List.fold_left (compile_stmt vars) tac in
-  tac |> remove_empty_blocks
+  match tac |> seal (focused tac) |> remove_empty_blocks |> validate with
+  | Ok tac -> tac
+  | Error err -> failwith (Printf.sprintf "Error compiling: %s" err)
 
 let a_prec (exp: aexp): int =
   match exp with
